@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.log
+*.swp
+*.tmp
+.env
+.env.*
+*.token
+*.key
+*.pem
+token
+config.json
+observation.json
+README.md.pre-release
