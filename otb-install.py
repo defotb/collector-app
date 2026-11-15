@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSION = "v1.0.1{etho,etica}"
+VERSION = "v1.0.2{etho,etica}"
 
 NETWORKS = {
     "etica": "61803",
@@ -111,7 +111,24 @@ def identify_service(service):
     datadir = option(args, "--datadir")
     network = option(args, "--networkid")
 
+    # Resolve tilde paths against the Geth service user's home,
+    # not the installer user's home (which may be root).
+    import pwd
+    service_home = Path(pwd.getpwnam(user).pw_dir)
+
+    def service_path(value):
+        if value == "~":
+            return str(service_home)
+        if value.startswith("~/"):
+            return str(service_home / value[2:])
+        return value
+
+    if datadir:
+        datadir = service_path(datadir)
+
     ipc = option(args, "--ipcpath")
+    if ipc:
+        ipc = service_path(ipc)
 
     if "--ipcdisable" in args:
         ipc = None

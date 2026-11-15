@@ -5,13 +5,13 @@ Node Directory.
 
 ## Version
 
-Collector App: v1.0.1
+Collector App: v1.0.2
 
 Supported networks:
 - Etho Protocol (ETHO)
 - Etica (EGAZ)
 
-Installer: v1.0.1{etho,etica}
+Installer: v1.0.2{etho,etica}
 Supporting components: v1.0.0{etho,etica}
 
 ## Components
