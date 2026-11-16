@@ -12,3 +12,5 @@ token
 config.json
 observation.json
 README.md.pre-release
+
+backups/

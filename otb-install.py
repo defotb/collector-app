@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSION = "v1.0.2{etho,etica}"
+VERSION = "v1.0.3{etho,etica}"
 
 NETWORKS = {
     "etica": "61803",
@@ -571,7 +571,7 @@ def installation_preflight(plan):
     else:
         print("Preflight: PASSED")
 
-    print("No files created; no invitation redeemed.")
+    print("No files created; no central registration performed.")
 
 
 
@@ -775,7 +775,7 @@ def prepare_collector(plan):
 
     except Exception:
         print("Local collector test failed.")
-        print("No invitation has been redeemed.")
+        print("No central registration has been created.")
 
         # Clean up only files created by this preparation.
         if config.exists():
@@ -801,13 +801,13 @@ def prepare_collector(plan):
 
 
 def enroll_collector(plan):
-    import getpass
     import pwd
     import urllib.error
     import urllib.request
 
-    url = "https://nodelist.outsidethebox.top/api/v1/enroll"
+    url = "https://nodelist.outsidethebox.top/api/v1/register"
     token_path = Path(plan["data"]) / "token"
+    observation_path = Path(plan["data"]) / "observation.json"
 
     if not token_path.parent.is_dir():
         raise RuntimeError("Collector directory missing")
@@ -819,16 +819,39 @@ def enroll_collector(plan):
     print("Blockchain:", plan["chain"])
     print("Collector:", plan["collector"])
 
-    code = getpass.getpass(
-        "One-time enrollment code: "
-    ).strip()
+    if observation_path.is_symlink() or not observation_path.is_file():
+        raise RuntimeError("Local observation missing")
 
-    if not code:
-        raise RuntimeError("Enrollment code required")
+    observation = json.loads(observation_path.read_text())
+
+    if (
+        observation.get("network", "").lower() != plan["chain"]
+        or observation.get("collector") != plan["collector"]
+    ):
+        raise RuntimeError("Local observation identity mismatch")
+
+    nodes = observation.get("nodes")
+
+    if not isinstance(nodes, list) or not nodes:
+        raise RuntimeError("Local observation has no nodes")
+
+    local_node = nodes[0]
+
+    if not isinstance(local_node, dict) or local_node.get("collector") is not True:
+        raise RuntimeError("Local collector node missing")
+
+    enode = local_node.get("enode")
+
+    if not isinstance(enode, str) or not enode.startswith("enode://"):
+        raise RuntimeError("Invalid local enode")
 
     request = urllib.request.Request(
         url,
-        data=json.dumps({"code": code}).encode(),
+        data=json.dumps({
+            "chain": plan["chain"],
+            "collector": plan["collector"],
+            "enode": enode
+        }).encode(),
         headers={"Content-Type": "application/json"},
         method="POST"
     )
@@ -842,9 +865,10 @@ def enroll_collector(plan):
         ) from exc
 
     if (
-        result.get("status") != "registered"
+        result.get("status") != "pending"
         or result.get("chain") != plan["chain"]
         or result.get("collector") != plan["collector"]
+        or not isinstance(result.get("expires_at"), str)
     ):
         raise RuntimeError(
             "Enrollment response did not match requested collector"
@@ -876,7 +900,10 @@ def enroll_collector(plan):
         token_path.unlink(missing_ok=True)
         raise
 
-    print("Enrollment successful.")
+    print("Automatic registration successful.")
+    print("Registration status: PENDING")
+    print("Awaiting Administrator approval.")
+    print("Pending registration expires:", result["expires_at"])
     print("Token stored securely:", token_path)
     print("Token contents: hidden")
 
@@ -975,18 +1002,18 @@ def install_collector():
         return
 
     # Prepare missing dependencies only after confirmation.
-    # No enrollment invitation has been consumed yet.
+    # No central registration has been created yet.
     prepare_shared_prerequisites()
 
     # Recheck installation paths and Geth before proceeding.
     installation_preflight(plan)
 
-    # Test collection before consuming the invitation.
+    # Test collection before registering centrally.
     prepare_collector(plan)
 
     print("\nLocal collection test passed.")
     print("The next step registers this collector centrally.")
-    print("An invitation will be consumed if accepted.")
+    print("Registration will initially be PENDING.")
 
     answer = input(
         "Proceed with enrollment? [yes/NO]: "
@@ -1029,12 +1056,12 @@ def install_collector():
         print("Collector:", plan["chain"] + "/" + plan["collector"])
         print("Service:", service)
         print("Timer:", timer)
-        print("Status: enabled and running")
+        print("Collector running; approval status: PENDING")
 
     except Exception:
         print("\nINSTALLATION INCOMPLETE")
         print("Local files have been preserved.")
-        print("Do not redeem another invitation yet.")
+        print("Do not register this collector again.")
         print("Configuration:", plan["config"])
         print("Data directory:", plan["data"])
         print("Check the failure before retrying.")
@@ -1072,7 +1099,7 @@ def resume_collector():
     if not config.is_file() or not token.is_file():
         raise SystemExit(
             "STOP: Existing configuration or token missing. "
-            "Do not redeem another invitation."
+            "Do not register this collector again."
         )
 
     if config.is_symlink() or data.is_symlink() or token.is_symlink():
@@ -1171,7 +1198,7 @@ def resume_collector():
     print("Collector:", identity)
     print("Service:", unit.name)
     print("Timer:", timer.name)
-    print("Existing token retained; no invitation redeemed.")
+    print("Existing token retained; no new registration performed.")
 
 
 
