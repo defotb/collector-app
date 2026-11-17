@@ -1,5 +1,7 @@
 # OutsideTheBox Collector App
 
+**Installation Guide:** [INSTALLATION.md](INSTALLATION.md)
+
 Multichain Geth node collector for the OutsideTheBox
 Node Directory.
 
