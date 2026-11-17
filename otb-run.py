@@ -47,6 +47,12 @@ def main():
             config["advertise_ip"]
         ])
 
+    if config.get("collector_app_version"):
+        collect.extend([
+            "--collector-app-version",
+            config["collector_app_version"]
+        ])
+
     subprocess.run(collect, check=True)
 
     push = [

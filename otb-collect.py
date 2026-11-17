@@ -73,6 +73,7 @@ def main():
     parser.add_argument("--ipc", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--advertise-ip")
+    parser.add_argument("--collector-app-version")
 
     args = parser.parse_args()
 
@@ -135,6 +136,16 @@ def main():
         ),
         "chain_verified": False
     }
+
+    if args.collector_app_version:
+        if not re.fullmatch(
+            r"v[0-9]+\.[0-9]+\.[0-9]+(?:-beta)?",
+            args.collector_app_version
+        ):
+            raise RuntimeError("Invalid Collector App version")
+        local_node["collector_app_version"] = (
+            args.collector_app_version
+        )
 
     nodes = [local_node]
     head_cache = {}

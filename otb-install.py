@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# OTB Universal Collector Installer v1.0.1{etho,etica}
+# OTB Universal Collector Installer v1.0.4-beta{etho,etica}
 
 import argparse
 import json
@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSION = "v1.0.3{etho,etica}"
+VERSION = "v1.0.4{etho,etica}"
 
 NETWORKS = {
     "etica": "61803",
@@ -393,6 +393,12 @@ def main():
     )
 
     mode.add_argument(
+        "--update",
+        action="store_true",
+        help="Discover and update existing collector installations"
+    )
+
+    mode.add_argument(
         "--list",
         action="store_true",
         help="List locally installed OTB collectors"
@@ -433,6 +439,10 @@ def main():
 
     if args.resume:
         resume_collector()
+        return
+
+    if args.update:
+        update_collector()
         return
 
     if args.list:
@@ -577,6 +587,133 @@ def installation_preflight(plan):
 
 
 
+def component_download_name(name):
+    """Select the versioned beta component download."""
+    filenames = {
+        "otb-collect.py": "otb-collect.py",
+        "otb-run.py": "otb-run.py",
+        "otb-push.py": "otb-push.py",
+    }
+
+    return filenames[name]
+
+
+def upgrade_shared_components():
+    """Upgrade recognized collector scripts with rollback on failure."""
+    import hashlib
+    import shutil
+    import tempfile
+    import urllib.request
+
+    if os.geteuid() != 0:
+        raise RuntimeError("Shared software upgrade requires root")
+
+    shared = Path("/usr/local/lib/otb-collector")
+
+    if shared.is_symlink() or not shared.is_dir():
+        raise RuntimeError("Unsafe shared software directory")
+
+    # Original collector component hashes, followed by current hashes.
+    versions = {
+        "otb-collect.py": (
+            "41bb654e4c53ffbd5db8ae51440348061752efcf6aeadeff6f3355e509489e06",
+            "3d1845308a1ca83748fbf117e1580b49def4d2a9bf988926ead1936a74e1842c",
+        ),
+        "otb-push.py": (
+            "91ed5ca9128feed9639beb29531fb32338f7728081f33d32bf19372ecc76ed4b",
+            "91ed5ca9128feed9639beb29531fb32338f7728081f33d32bf19372ecc76ed4b",
+        ),
+        "otb-run.py": (
+            "f682561f49cafafe248acf300706a52a09c4b50bda25fd501bf82597a742f77e",
+            "0563c5d35148870adef2b102283c8e318d5e7d636610adb662c2ae87f38268d7",
+        ),
+    }
+
+    base_url = "https://nodelist.outsidethebox.top/downloads/"
+    staged = {}
+    originals = {}
+
+    # Verify everything before changing any installed file.
+    for name, (old_hash, new_hash) in versions.items():
+        target = shared / name
+
+        if target.is_symlink() or not target.is_file():
+            raise RuntimeError("Missing or unsafe component: " + name)
+
+        original = target.read_bytes()
+        actual = hashlib.sha256(original).hexdigest()
+
+        if actual not in (old_hash, new_hash):
+            raise RuntimeError(
+                "Unrecognized installed component: " + name
+            )
+
+        originals[name] = original
+
+        if actual == new_hash:
+            print("Already current:", name)
+            continue
+
+        with urllib.request.urlopen(
+            base_url + component_download_name(name), timeout=20
+        ) as response:
+            content = response.read(1024 * 1024 + 1)
+
+        if len(content) > 1024 * 1024:
+            raise RuntimeError("Download too large: " + name)
+
+        if hashlib.sha256(content).hexdigest() != new_hash:
+            raise RuntimeError("Replacement checksum mismatch: " + name)
+
+        compile(content, name, "exec")
+        staged[name] = content
+        print("Verified replacement:", name)
+
+    if not staged:
+        print("All shared components are current.")
+        return True
+
+    answer = input(
+        "Replace verified shared scripts? [yes/NO]: "
+    ).strip().lower()
+
+    if answer != "yes":
+        print("Shared software update cancelled.")
+        return False
+
+    replaced = []
+
+    def replace_file(name, content):
+        target = shared / name
+        fd, temporary = tempfile.mkstemp(
+            prefix=".otb-upgrade-", dir=str(shared)
+        )
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chown(temporary, 0, 0)
+            os.chmod(temporary, 0o755)
+            os.replace(temporary, target)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
+    try:
+        for name, content in staged.items():
+            replace_file(name, content)
+            replaced.append(name)
+    except Exception:
+        for name in reversed(replaced):
+            replace_file(name, originals[name])
+        raise
+
+    print("Shared collector software updated.")
+    print("Existing collector tokens and configurations unchanged.")
+    return True
+
+
 def prepare_shared_prerequisites():
     """Prepare missing shared components before collector enrollment."""
     import hashlib
@@ -594,11 +731,11 @@ def prepare_shared_prerequisites():
 
     checksums = {
         "otb-collect.py":
-            "41bb654e4c53ffbd5db8ae51440348061752efcf6aeadeff6f3355e509489e06",
+            "3d1845308a1ca83748fbf117e1580b49def4d2a9bf988926ead1936a74e1842c",
         "otb-push.py":
             "91ed5ca9128feed9639beb29531fb32338f7728081f33d32bf19372ecc76ed4b",
         "otb-run.py":
-            "f682561f49cafafe248acf300706a52a09c4b50bda25fd501bf82597a742f77e",
+            "0563c5d35148870adef2b102283c8e318d5e7d636610adb662c2ae87f38268d7",
     }
 
     if os.geteuid() != 0:
@@ -648,7 +785,7 @@ def prepare_shared_prerequisites():
             print("Downloading:", name)
 
             with urllib.request.urlopen(
-                base_url + name, timeout=20
+                base_url + component_download_name(name), timeout=20
             ) as response:
                 content = response.read(1024 * 1024 + 1)
 
@@ -738,7 +875,8 @@ def prepare_collector(plan):
         "collector": plan["collector"],
         "ipc": plan["ipc"],
         "output": str(output),
-        "token_file": str(token)
+        "token_file": str(token),
+        "collector_app_version": VERSION.split("{", 1)[0]
     }
 
     # Config contains paths and identity, never the token itself.
@@ -1068,6 +1206,441 @@ def install_collector():
         raise
 
 
+
+
+
+def select_managed_update():
+    """Select and validate an existing managed installation."""
+    if os.geteuid() != 0:
+        raise SystemExit("Update requires sudo")
+
+    config_root = Path("/etc/otb-collector")
+    data_root = Path("/var/lib/otb-collector")
+    unit_root = Path("/etc/systemd/system")
+
+    if config_root.is_symlink() or not config_root.is_dir():
+        raise SystemExit("STOP: Invalid collector configuration directory")
+
+    found = []
+
+    for config in sorted(config_root.glob("*.json")):
+        if config.is_symlink():
+            raise SystemExit("STOP: Collector configuration symlink")
+
+        settings = json.loads(config.read_text())
+        chain = settings.get("chain")
+        collector = settings.get("collector")
+
+        if chain not in NETWORKS:
+            continue
+
+        if not isinstance(collector, str) or not re.fullmatch(
+            r"[A-Za-z0-9_.-]+", collector
+        ) or collector in (".", ".."):
+            raise SystemExit("STOP: Invalid collector identity")
+
+        identity = chain + "-" + collector
+        item = {
+            "chain": chain,
+            "identity": identity,
+            "config": config,
+            "data": data_root / identity,
+            "service": unit_root / (
+                "otb-collector-" + identity + ".service"
+            ),
+            "timer": unit_root / (
+                "otb-collector-" + identity + ".timer"
+            )
+        }
+
+        if not item["service"].is_file() or not item["timer"].is_file():
+            print("Incomplete managed installation:", identity)
+            continue
+
+        found.append(item)
+
+    print("\n===== MANAGED COLLECTORS =====")
+
+    for index, item in enumerate(found, 1):
+        print("[%d] %s" % (index, item["identity"]))
+
+    if not found:
+        print("No complete managed installations found.")
+        return None
+
+    choice = input("Select collector number: ").strip()
+
+    if not choice.isdigit() or not 1 <= int(choice) <= len(found):
+        raise SystemExit("Invalid selection")
+
+    item = found[int(choice) - 1]
+
+    validate_managed_collector(item)
+
+    settings = json.loads(item["config"].read_text())
+
+    print("\n===== VERIFIED MANAGED INSTALLATION =====")
+    print("Collector:", item["identity"])
+    print("Configuration:", item["config"])
+    print("Current version:",
+          settings.get("collector_app_version", "Not recorded"))
+    print("Existing credential: retained")
+    print("Central registration: unchanged")
+    print("Validation: PASSED")
+
+    return item
+
+
+def update_managed_collector():
+    """Upgrade a managed collector, preserving credentials."""
+    import copy
+    import hashlib
+    import shutil
+    import tempfile
+
+    item = select_managed_update()
+    if item is None:
+        return
+
+    config = item["config"]
+    settings = json.loads(config.read_text())
+    old_config = config.read_bytes()
+
+    # All managed collectors on this host share these scripts.
+    shared = Path("/usr/local/lib/otb-collector")
+    names = ("otb-collect.py", "otb-push.py", "otb-run.py")
+    originals = {}
+
+    for name in names:
+        path = shared / name
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError("Unsafe shared script: " + name)
+        originals[name] = path.read_bytes()
+
+    # Locate and validate all installed managed collectors
+    # before temporarily stopping their timers.
+    managed = []
+    root = Path("/etc/otb-collector")
+
+    for candidate in sorted(root.glob("*.json")):
+        if candidate.is_symlink():
+            raise RuntimeError("Unsafe collector configuration")
+
+        data = json.loads(candidate.read_text())
+        chain = data.get("chain")
+        collector = data.get("collector")
+
+        if chain not in NETWORKS or not isinstance(collector, str):
+            continue
+
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", collector):
+            raise RuntimeError("Invalid managed collector name")
+
+        identity = chain + "-" + collector
+        unit_root = Path("/etc/systemd/system")
+        service = unit_root / (
+            "otb-collector-" + identity + ".service"
+        )
+        timer = unit_root / (
+            "otb-collector-" + identity + ".timer"
+        )
+
+        # Legacy partial test configurations are not managed.
+        if not service.exists() and not timer.exists():
+            continue
+
+        entry = {
+            "chain": chain,
+            "identity": identity,
+            "config": candidate,
+            "data": Path("/var/lib/otb-collector") / identity,
+            "service": service,
+            "timer": timer
+        }
+
+        validate_managed_collector(entry)
+        managed.append(entry)
+
+    print("\n===== MANAGED UPDATE PLAN =====")
+    print("Selected:", item["identity"])
+    print("Previous version:",
+          settings.get("collector_app_version", "Not recorded"))
+    print("Target version:", VERSION)
+    print("Shared scripts:", ", ".join(names))
+    print("Managed collectors on host:", len(managed))
+    print("Credential: preserved")
+    print("Central registration: unchanged")
+    print("Geth: untouched")
+
+    answer = input(
+        "Perform managed collector upgrade? [yes/NO]: "
+    ).strip().lower()
+
+    if answer != "yes":
+        print("Update cancelled.")
+        return
+
+    backup_root = Path("/var/backups/otb-collector")
+    backup_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    backup = Path(tempfile.mkdtemp(
+        prefix="managed-update-", dir=str(backup_root)
+    ))
+
+    # Retain an on-disk recovery copy, even after success.
+    for name, content in originals.items():
+        (backup / name).write_bytes(content)
+    (backup / "config.json").write_bytes(old_config)
+
+    print("Rollback files:", backup)
+
+    def atomic_replace(path, content, mode):
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError("Unsafe replacement target: " + str(path))
+
+        fd, temp = tempfile.mkstemp(
+            prefix=".otb-update-", dir=str(path.parent)
+        )
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+
+            old_stat = path.stat()
+            os.chown(temp, old_stat.st_uid, old_stat.st_gid)
+            os.chmod(temp, mode)
+            os.replace(temp, path)
+        finally:
+            if os.path.exists(temp):
+                os.unlink(temp)
+
+    active_timers = []
+    update_started = False
+    success = False
+
+    try:
+        # Prevent managed collector cycles from running
+        # while their shared scripts are being replaced.
+        for entry in managed:
+            timer_name = entry["timer"].name
+            if subprocess.run(
+                ["systemctl", "is-active", "--quiet", timer_name]
+            ).returncode == 0:
+                active_timers.append(timer_name)
+
+        for timer_name in active_timers:
+            subprocess.run(
+                ["systemctl", "stop", timer_name], check=True
+            )
+
+        # Do not replace shared scripts while a collector
+        # service is still executing.
+        for entry in managed:
+            service_name = entry["service"].name
+            if subprocess.run(
+                ["systemctl", "is-active", "--quiet", service_name]
+            ).returncode == 0:
+                raise RuntimeError(
+                    "Collector service still running: " + service_name
+                )
+
+        update_started = True
+        result = upgrade_shared_components()
+
+        if result is not True:
+            print("Shared software update cancelled.")
+            return
+
+        # Mark the selected collector with the target version
+        # before its test run, then commit only on success.
+        updated = dict(settings)
+        updated["collector_app_version"] = VERSION.split("{", 1)[0]
+
+        encoded = (
+            json.dumps(updated, indent=2) + "\n"
+        ).encode()
+
+        atomic_replace(config, encoded, 0o644)
+
+        # Starting a oneshot service waits for the full
+        # collection and authenticated upload to finish.
+        subprocess.run(
+            ["systemctl", "start", item["service"].name],
+            check=True
+        )
+
+        # Verify the collector actually emitted this version.
+        observation = json.loads(
+            (item["data"] / "observation.json").read_text()
+        )
+        local = [
+            n for n in observation.get("nodes", [])
+            if n.get("collector") is True
+        ]
+
+        if (
+            len(local) != 1
+            or local[0].get("collector_app_version") != VERSION.split("{", 1)[0]
+        ):
+            raise RuntimeError(
+                "Updated collector version not verified"
+            )
+
+        success = True
+        print("\nMANAGED UPDATE SUCCESSFUL")
+        print("Collector:", item["identity"])
+        print("Applied version:", VERSION)
+        print("Original token retained.")
+        print("Rollback files:", backup)
+
+    except Exception:
+        if update_started:
+            print("Update failed; restoring original files.")
+
+            for name, content in originals.items():
+                target = shared / name
+                if target.is_file() and not target.is_symlink():
+                    atomic_replace(target, content, 0o755)
+
+            atomic_replace(config, old_config, 0o644)
+
+        raise
+
+    finally:
+        for timer_name in active_timers:
+            subprocess.run(
+                ["systemctl", "start", timer_name], check=True
+            )
+
+        if not success:
+            print("Managed update did not complete successfully.")
+
+
+def update_collector():
+    """Update a managed installation or migrate a legacy collector."""
+    print("\\n===== UPDATE TYPE =====")
+    print("[1] Update existing managed collector")
+    print("[2] Migrate a legacy collector")
+
+    choice = input("Select update type: ").strip()
+
+    if choice == "1":
+        update_managed_collector()
+        return
+
+    if choice != "2":
+        raise SystemExit("Invalid update type")
+
+    # Legacy migration continues below.
+    import pwd
+    import stat
+
+    if os.geteuid() != 0:
+        raise SystemExit("Update requires sudo")
+
+    print("\n===== OTB COLLECTOR UPDATE =====")
+    print("Legacy credential migration")
+    print("Original credential and legacy files will be preserved.")
+    print()
+
+    plan = installation_plan()
+
+    print("\n===== EXISTING CREDENTIAL =====")
+    source = Path(input(
+        "Absolute path to existing collector token: "
+    ).strip())
+
+    if not source.is_absolute() or source.is_symlink():
+        raise SystemExit("STOP: Invalid credential path")
+
+    account = pwd.getpwnam(plan["user"])
+
+    # Open without following a symbolic link.
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+
+    fd = os.open(str(source), flags)
+
+    try:
+        info = os.fstat(fd)
+
+        if not stat.S_ISREG(info.st_mode):
+            raise SystemExit("STOP: Token is not a regular file")
+
+        if info.st_uid != account.pw_uid:
+            raise SystemExit("STOP: Token ownership mismatch")
+
+        if stat.S_IMODE(info.st_mode) != 0o600:
+            raise SystemExit("STOP: Token permissions must be 0600")
+
+        with os.fdopen(fd, "r") as f:
+            fd = -1
+            token_value = f.read(4097).strip()
+
+        if len(token_value) < 32 or len(token_value) > 4096:
+            raise SystemExit("STOP: Invalid credential length")
+
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+    installation_preflight(plan)
+
+    print("\n===== MIGRATION PREVIEW =====")
+    print("Blockchain:", plan["chain"])
+    print("Collector:", plan["collector"])
+    print("Geth service:", plan["service"])
+    print("Legacy credential:", source)
+    print("New credential:", Path(plan["data"]) / "token")
+    print("Legacy files: retained")
+    print("Central registration: unchanged")
+    print()
+    print("The first authenticated upload must validate this token.")
+
+    answer = input(
+        "Prepare migration using this credential? [yes/NO]: "
+    ).strip().lower()
+
+    if answer != "yes":
+        print("Migration cancelled; no changes made.")
+        return
+
+    prepare_shared_prerequisites()
+    installation_preflight(plan)
+    prepare_collector(plan)
+
+    destination = Path(plan["data"]) / "token"
+
+    fd = os.open(
+        str(destination),
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        0o600
+    )
+
+    try:
+        os.fchown(fd, account.pw_uid, account.pw_gid)
+        os.fchmod(fd, 0o600)
+
+        with os.fdopen(fd, "w") as f:
+            fd = -1
+            f.write(token_value + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+    print("\n===== MIGRATION PREPARED =====")
+    print("Existing credential preserved in new installation.")
+    print("Original credential unchanged.")
+    print("No new central registration performed.")
+    print()
+    print("Complete installation with:")
+    print("  sudo python3 otb-install.py --resume")
+    print("Select blockchain:", plan["chain"])
+    print("Select collector:", plan["collector"])
+    print()
+    print("Do not remove legacy files until upload verification passes.")
 
 
 
