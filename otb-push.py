@@ -14,6 +14,7 @@ from pathlib import Path
 VERSION = "v1.0.0{etho,etica}"
 
 NETWORKS = {
+    "alt": "ALT",
     "etica": "ETICA",
     "etho": "ETHO"
 }

@@ -13,6 +13,7 @@ from pathlib import Path
 VERSION = "v1.0.0{etho,etica}"
 
 NETWORKS = {
+    "alt": ("ALT", "2330"),
     "etica": ("ETICA", "61803"),
     "etho": ("ETHO", "1313114"),
 }

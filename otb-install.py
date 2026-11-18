@@ -13,6 +13,7 @@ from pathlib import Path
 VERSION = "v1.0.4{etho,etica}"
 
 NETWORKS = {
+    "alt": "2330",
     "etica": "61803",
     "etho": "1313114",
 }
@@ -138,12 +139,18 @@ def identify_service(service):
     elif not ipc and datadir:
         ipc = str(Path(datadir) / "geth.ipc")
 
-    if "--etica" in args or "geth-etica" in executable:
+    chain = next(
+        (
+            name for name, network_id in NETWORKS.items()
+            if network == network_id
+        ),
+        "unknown"
+    )
+
+    if chain == "unknown" and (
+        "--etica" in args or "geth-etica" in executable
+    ):
         chain = "etica"
-    elif network == NETWORKS["etho"]:
-        chain = "etho"
-    else:
-        chain = "unknown"
 
     return {
         "service": service,
@@ -1652,7 +1659,8 @@ def resume_collector():
         raise SystemExit("Recovery requires sudo")
 
     print("\n===== RESUME COLLECTOR INSTALLATION =====")
-    chain = input("Blockchain (etho/etica): ").strip()
+    choices = "/".join(sorted(NETWORKS))
+    chain = input(f"Blockchain ({choices}): ").strip()
     collector = input("Collector identity: ").strip()
 
     if chain not in NETWORKS:
