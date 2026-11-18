@@ -1,20 +1,34 @@
 # OTB Collector App — Installation Guide
 
 The OutsideTheBox (OTB) Collector App collects node and peer information
-from ETHO and Etica blockchain nodes and submits observations to the
+from Altcoinchain, ETHO and Etica blockchain nodes and submits observations to the
 OTB Node Directory.
 
 Supported blockchains:
+- Altcoinchain (ALT)
 - ETHO (Etho Protocol)
 - Etica
 
-Current release: **v1.0.4**
+Current release: **v2.0.0**
+
+### Install from GitHub
+
+Clone the repository:
+
+    git clone https://github.com/defotb/collector-app.git
+    cd collector-app
+    git checkout v2.0.0
+    sudo python3 otb-install.py --probe
+    sudo python3 otb-install.py --preflight
+    sudo python3 otb-install.py --install
+
+The installer downloads verified components from the OTB Node Directory server.
 
 ## 1. Requirements
 
 Before installing, ensure you have:
 
-- A Linux server running an ETHO or Etica Geth node
+- A Linux server running an ALT, ETHO or Etica Geth node
 - Python 3
 - systemd
 - A working Geth IPC socket
@@ -140,4 +154,4 @@ Collector App: https://github.com/defotb/collector-app
 
 Node Directory: https://nodelist.outsidethebox.top/
 
-Multiple ETHO and Etica collectors can operate on one Linux server with separate credentials and configurations while sharing the collector software.
+Multiple ALT, ETHO and Etica collectors can operate on one Linux server with separate credentials and configurations while sharing the collector software.

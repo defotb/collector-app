@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# OTB Universal Collector Runner v1.0.0{etho,etica}
+# OTB Universal Collector Runner v2.0.0{alt,etho,etica}
 
 import argparse
 import json
@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSION = "v1.0.0{etho,etica}"
+VERSION = "v2.0.0{alt,etho,etica}"
 
 HERE = Path(__file__).resolve().parent
 

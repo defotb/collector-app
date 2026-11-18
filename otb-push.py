@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# OTB Universal Uploader v1.0.0{etho,etica}
+# OTB Universal Uploader v2.0.0{alt,etho,etica}
 
 import argparse
 import json
@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-VERSION = "v1.0.0{etho,etica}"
+VERSION = "v2.0.0{alt,etho,etica}"
 
 NETWORKS = {
     "alt": "ALT",

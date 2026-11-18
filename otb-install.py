@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# OTB Universal Collector Installer v1.0.4-beta{etho,etica}
+# OTB Universal Collector Installer v2.0.0{alt,etho,etica}
 
 import argparse
 import json
@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-VERSION = "v1.0.4{etho,etica}"
+VERSION = "v2.0.0{alt,etho,etica}"
 
 NETWORKS = {
     "alt": "2330",
@@ -595,7 +595,7 @@ def installation_preflight(plan):
 
 
 def component_download_name(name):
-    """Select the versioned beta component download."""
+    """Select the current component download."""
     filenames = {
         "otb-collect.py": "otb-collect.py",
         "otb-run.py": "otb-run.py",
@@ -625,14 +625,18 @@ def upgrade_shared_components():
         "otb-collect.py": (
             "41bb654e4c53ffbd5db8ae51440348061752efcf6aeadeff6f3355e509489e06",
             "3d1845308a1ca83748fbf117e1580b49def4d2a9bf988926ead1936a74e1842c",
+            "bd7892f4e7c9a730553c091758f4c8080792486b9307c28ccab15f9a3336dd1e",
+            "bf6ac6e6fb387688c25bb436ae8fe9d3d527317f29f09cfa19e2503e05c80b58",
         ),
         "otb-push.py": (
             "91ed5ca9128feed9639beb29531fb32338f7728081f33d32bf19372ecc76ed4b",
-            "91ed5ca9128feed9639beb29531fb32338f7728081f33d32bf19372ecc76ed4b",
+            "c03e1a31d84d5c3433164266aa45e3a2139ff7943184a6e12557090493b98775",
+            "6fe55573d44b04b1bfc82d13e61babede2c9def116f0b58332593aed6c8aacfd",
         ),
         "otb-run.py": (
             "f682561f49cafafe248acf300706a52a09c4b50bda25fd501bf82597a742f77e",
             "0563c5d35148870adef2b102283c8e318d5e7d636610adb662c2ae87f38268d7",
+            "d4f343859efcf11fb0ec26b1e63c4a284e0917842d83daab4c9795eb9fbd9959",
         ),
     }
 
@@ -641,7 +645,8 @@ def upgrade_shared_components():
     originals = {}
 
     # Verify everything before changing any installed file.
-    for name, (old_hash, new_hash) in versions.items():
+    for name, hashes in versions.items():
+        new_hash = hashes[-1]
         target = shared / name
 
         if target.is_symlink() or not target.is_file():
@@ -650,7 +655,7 @@ def upgrade_shared_components():
         original = target.read_bytes()
         actual = hashlib.sha256(original).hexdigest()
 
-        if actual not in (old_hash, new_hash):
+        if actual not in hashes:
             raise RuntimeError(
                 "Unrecognized installed component: " + name
             )
@@ -738,11 +743,11 @@ def prepare_shared_prerequisites():
 
     checksums = {
         "otb-collect.py":
-            "3d1845308a1ca83748fbf117e1580b49def4d2a9bf988926ead1936a74e1842c",
+            "bf6ac6e6fb387688c25bb436ae8fe9d3d527317f29f09cfa19e2503e05c80b58",
         "otb-push.py":
-            "91ed5ca9128feed9639beb29531fb32338f7728081f33d32bf19372ecc76ed4b",
+            "6fe55573d44b04b1bfc82d13e61babede2c9def116f0b58332593aed6c8aacfd",
         "otb-run.py":
-            "0563c5d35148870adef2b102283c8e318d5e7d636610adb662c2ae87f38268d7",
+            "d4f343859efcf11fb0ec26b1e63c4a284e0917842d83daab4c9795eb9fbd9959",
     }
 
     if os.geteuid() != 0:

@@ -7,14 +7,15 @@ Node Directory.
 
 ## Version
 
-Collector App: v1.0.2
+Collector App: v2.0.0
 
 Supported networks:
+- Altcoinchain (ALT)
 - Etho Protocol (ETHO)
 - Etica (EGAZ)
 
-Installer: v1.0.2{etho,etica}
-Supporting components: v1.0.0{etho,etica}
+Installer: v2.0.0{alt,etho,etica}
+Supporting components: v2.0.0{alt,etho,etica}
 
 ## Components
 
@@ -29,6 +30,19 @@ https://nodelist.outsidethebox.top/downloads/otb-install.py
 
 The installer downloads supporting files from the
 Node Directory and verifies their SHA-256 checksums.
+
+### Install from GitHub
+
+Clone the repository:
+
+    git clone https://github.com/defotb/collector-app.git
+    cd collector-app
+    git checkout v2.0.0
+    sudo python3 otb-install.py --probe
+    sudo python3 otb-install.py --preflight
+    sudo python3 otb-install.py --install
+
+The installer downloads verified components from the OTB Node Directory server.
 
 ## Installation
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# OTB Universal Collector v1.0.0{etho,etica}
+# OTB Universal Collector v2.0.0{alt,etho,etica}
 
 import argparse
 import datetime
@@ -10,7 +10,7 @@ import socket
 import tempfile
 from pathlib import Path
 
-VERSION = "v1.0.0{etho,etica}"
+VERSION = "v2.0.0{alt,etho,etica}"
 
 NETWORKS = {
     "alt": ("ALT", "2330"),
